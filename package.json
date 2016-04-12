@@ -1,0 +1,12 @@
+{
+  "name": "jScope",
+  "version": "1.0.0",
+  "description": "模拟JavaScript作用域的数据缓存库。可以用于JS-VM中实现Javascript数据对象的存储。\r 存储类型包括。",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
