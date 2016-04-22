@@ -89,11 +89,12 @@ gulp.task('test', ['test-kill', 'build'], function () {
     read: false
   }).pipe(mocha({
     reporter: 'spec',
-    debug: true
-  })).on("error",function(err){
-    if(!_is_by_killed){
-       gutil.log(err)
-    }else{
+    debug: true,
+    prop: 5859
+  })).on("error", function (err) {
+    if (!_is_by_killed) {
+      gutil.log(err)
+    } else {
       gutil.log(gutil.colors.green("RESTART Mocha."));
     }
     _is_by_killed = false;
@@ -107,12 +108,12 @@ gulp.task('test-kill', function (done) {
       done(err)
     } else {
       var infos = stdout.split('\n')
-        .filter(netinfo => netinfo.indexOf('0.0.0.0:5858') !== -1)
+        .filter(netinfo => netinfo.indexOf('0.0.0.0:5859') !== -1)
         .map(netinfo => netinfo.trim().split(/\s{1,}/g));
 
       if (infos[0]) {
         var pid = infos[0].slice().pop();
-        gutil.log("kill Debugger port:5858. PID:", pid);
+        gutil.log("kill Debugger port:5859. PID:", pid);
         _is_by_killed = true;
         process.kill(pid);
       }

@@ -24,7 +24,7 @@ var _BaseTypeCusMap = {
 
 var _$BaseProto = $Base[__PROTOTYPE] = {
 	has: function (key) {
-		return $IsOwnPro(this.V, key)
+		return $IsOwn(this.V, key)
 	},
 	//get Property
 	get: function (key, unpack) {
