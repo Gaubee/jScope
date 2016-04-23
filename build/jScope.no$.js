@@ -103,6 +103,13 @@ __ScopePrototype.emit = function (eventName) {
 	}
 	return self;
 };
+__ScopePrototype.getTopScope = function () {
+	var res = this;
+	while (res.P) {
+		res = res.P
+	}
+	return res;
+}
 
 __ScopePrototype.push = function (scope_name) {
 	var self = this;
@@ -142,7 +149,11 @@ __ScopePrototype.get = _ScopeNormalGet;
 /*GET*/
 function _ScopeNormalGet(key, unpack) {
 	var self = this;
-	return (self.O.has(key) ? self.O : self.P).get(key, unpack);
+	var res = (self.O.has(key) ? self.O : self.P).get(key, unpack);
+	if ($InsOf(res, $$Function) && res.T === self.O && !res.S) {// 修正函数对象的this指向
+		res.T = self.getTopScope().O
+	}
+	return res;
 };
 
 function _ScopeTopGet(key, unpack) { // 没有Parent对象的Get方法 no parent get 
@@ -242,19 +253,21 @@ Scope.Function = $Function;
 
 function $$Function(fun, args) {
 	this.V = fun;
-	this.A = args;
+	this.T = null; // 临时的this对象
+	this.S = null; // bind函数所绑定的super this对象 
 };
 
 $$Function.TypeofValue = "function"
 
 var __$$FunctionProperty = $$Function[__PROTOTYPE] = $Create(_$BaseProto);
-__$$FunctionProperty.run = function (ctx, args) {
+__$$FunctionProperty.run = function () {
 	var self = this;
-	self.V.apply(ctx, args);
+	var args = $Slice(arguments);
+	self.V.apply(self.S || self.T, args);
 };
 
 function $Function(fun, args) {
-	return $$Function(fun, args)
+	return new $$Function(fun, args)
 };
 Scope.Null = $Null;
 function $$Null(v) {
@@ -310,7 +323,7 @@ function $Number(v) {
 Scope.Object = $Object;
 
 function $$Object(v) {
-	this.V = v;
+	this.V = v || {};
 	this.G = null; //getter
 	this.S = null; //setter
 	this.C = {}; //config
@@ -374,15 +387,26 @@ function assignPropConfig(old_config, new_config) {
 	});
 	return res_config;
 };
+
+var _DefaultPropConfig = {
+	writable: TRUE,
+	enumerable: TRUE,
+	configurable: TRUE
+};
+
 //get Property
 __$$ObjectProperty.get = function (key, unpack) {
 	var self = this;
 	if (self.has(key)) {
-		var res = self.G && $IsOwn(self.G, key) ? self.G[key].call(self.V) : self.V[key];
+		var res = self.G && $IsOwn(self.G, key) ? self.G[key].call(self, key) : self.V[key];
 	} else {
 		res = $undefined
 	}
-	return unpack ? (res ? res.valueOf() : res) : $Base(res)
+	res = unpack ? (res ? res.valueOf() : res) : $Base(res);
+	if ($InsOf(res, $$Function)) {
+		res.T = self;// 指定属性拥有着，从而function能有this对象
+	}
+	return res;
 };
 //set Property
 __$$ObjectProperty.set = function (key, value) {
@@ -393,13 +417,9 @@ __$$ObjectProperty.set = function (key, value) {
 		return
 	}
 	// 普通的变量定义，初始化默认的config
-	$IsOwn(self.C, key) || (self.C[key] = assignPropConfig({
-		writable: TRUE,
-		enumerable: TRUE,
-		configurable: TRUE
-	}));
+	$IsOwn(self.C, key) || (self.C[key] = assignPropConfig(_DefaultPropConfig));
 	var V = $Base(value);
-	self.S && $IsOwn(self.S, key) ? self.S[key].call(self.V, value) : (self.V[key] = value);
+	self.S && $IsOwn(self.S, key) ? self.S[key].call(self, value, key) : (self.V[key] = value);
 
 	return V;
 };
@@ -412,8 +432,8 @@ __$$ObjectProperty.defGet = function (key, handle, new_config) {
 		throw TypeError("getter must be an function.")
 	}
 	/*判断对象是否可被重写*/
-	var old_config = config[key];
-	if (old_config && !old_config.configurable) {
+	var old_config = config[key] || _DefaultPropConfig;
+	if (!old_config.configurable) {
 		return;
 	}
 	config[key] = assignPropConfig(old_config, new_config);
@@ -432,8 +452,8 @@ __$$ObjectProperty.defSet = function (key, handle, new_config) {
 		throw TypeError("setter must be an function.")
 	}
 	/*判断对象是否可被重写*/
-	var old_config = config[key];
-	if (old_config && !old_config.configurable) {
+	var old_config = config[key] || _DefaultPropConfig;
+	if (!old_config.configurable) {
 		return;
 	}
 	config[key] = assignPropConfig(old_config, new_config);
@@ -443,33 +463,35 @@ __$$ObjectProperty.defSet = function (key, handle, new_config) {
 	self.set = _$$Object_Mix_SetProp;
 	self.has = _$$Object_Mix_HasProp;
 };
-__$$ObjectProperty.def = function (key, config) {
+__$$ObjectProperty.def = function (key, new_config) {
+	if (!new_config) {
+		return
+	}
+
 	var self = this;
 	var value = self.V;
 	var config = self.C || {};
 
 	/*判断对象是否可被重写*/
-	var old_config = config[key];
-	if (old_config && !old_config.configurable) {
+	var old_config = config[key] || _DefaultPropConfig;
+	if (!old_config.configurable) {
 		return;
 	}
-	config[key] = assignPropConfig(old_config, config);
+	config[key] = assignPropConfig(old_config, new_config);
 
 	if ($IsOwn(value, key) && old_config.writable) {
 		if ($IsOwn(config, value)) {
 			value[key] = config.value
 		}
-		self.C = assignPropConfig(config)
 	} else if (old_config.configurable) {
-		if ($IsOwn(config.get)) {
-			var setter = self.S || (self.S = {});
-			getter[key] = config.get;
-		}
-		if ($IsOwn(config.set)) {
+		if ($InsOf(new_config.get, _GlobalFunction)) {
 			var getter = self.G || (self.G = {});
-			setter[key] = config.set;
+			getter[key] = new_config.get;
 		}
-		self.C = assignPropConfig(config)
+		if ($InsOf(new_config.set, _GlobalFunction)) {
+			var setter = self.S || (self.S = {});
+			setter[key] = new_config.set;
+		}
 	}
 	return self;
 };

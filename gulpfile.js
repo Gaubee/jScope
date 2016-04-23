@@ -89,8 +89,7 @@ gulp.task('test', ['test-kill', 'build'], function () {
     read: false
   }).pipe(mocha({
     reporter: 'spec',
-    debug: true,
-    prop: 5859
+    debug: "=5859"
   })).on("error", function (err) {
     if (!_is_by_killed) {
       gutil.log(err)

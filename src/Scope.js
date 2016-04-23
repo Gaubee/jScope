@@ -44,6 +44,13 @@ __ScopePrototype.emit = function (eventName) {
 	}
 	return self;
 };
+__ScopePrototype.getTopScope = function () {
+	var res = this;
+	while (res.P) {
+		res = res.P
+	}
+	return res;
+}
 
 __ScopePrototype.push = function (scope_name) {
 	var self = this;
@@ -83,7 +90,11 @@ __ScopePrototype.get = _ScopeNormalGet;
 /*GET*/
 function _ScopeNormalGet(key, unpack) {
 	var self = this;
-	return (self.O.has(key) ? self.O : self.P).get(key, unpack);
+	var res = (self.O.has(key) ? self.O : self.P).get(key, unpack);
+	if ($InsOf(res, $$Function) && res.T === self.O && !res.S) {// 修正函数对象的this指向
+		res.T = self.getTopScope().O
+	}
+	return res;
 };
 
 function _ScopeTopGet(key, unpack) { // 没有Parent对象的Get方法 no parent get 
